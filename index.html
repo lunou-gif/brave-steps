@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brave Steps — Exposure Tracker</title>
+<meta name="description" content="A quick, private way to log anxiety ratings during exposure practice and see progress over time.">
+<meta name="theme-color" content="#3d7f6e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Brave Steps">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  :root{
+    --ff:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bg:#f6f4ef; --card:#ffffff; --ink:#1f2a33; --muted:#6b7680; --line:#e6e2da;
+    --accent:#3d7f6e; --accent-ink:#ffffff; --warn:#c2412d;
+    --peak:#e0603a; --after:#2f7fb0; --early:#a3abb3; --recent:#3d7f6e; --r:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14181b; --card:#1d2328; --ink:#e9edf0; --muted:#9aa5ae; --line:#2c343a;
+      --accent:#5fb39c; --accent-ink:#0f1a17; --early:#6c757d; --recent:#5fb39c; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 var(--ff);-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:540px;margin:0 auto;padding:calc(10px + env(safe-area-inset-top)) 14px calc(40px + env(safe-area-inset-bottom))}
+  header{display:flex;align-items:baseline;justify-content:space-between;padding:6px 2px 10px}
+  header h1{font-size:22px;margin:0;letter-spacing:-.2px}
+  header .beta{font-size:11px;font-weight:700;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:3px}
+  #sync{font-size:12px;color:var(--muted)}
+  nav{display:grid;grid-template-columns:1fr 1fr 1fr 48px;gap:4px;background:var(--card);border:1px solid var(--line);
+    border-radius:999px;padding:4px;margin-bottom:14px;position:sticky;top:calc(6px + env(safe-area-inset-top));z-index:5}
+  nav button{border:0;background:transparent;color:var(--muted);font:600 14px/1 var(--ff);padding:10px 0;border-radius:999px;cursor:pointer}
+  nav button.on{background:var(--accent);color:var(--accent-ink)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:10px}
+  .lbl{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 6px}
+  input[type=text],input[type=datetime-local],textarea,select{width:100%;font:16px var(--ff);color:var(--ink);background:transparent;
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  textarea{min-height:76px;resize:vertical}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 11px;font:13px var(--ff);cursor:pointer}
+  .chip.on{border-color:var(--accent)}
+  .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .primary{border:0;background:var(--accent);color:var(--accent-ink);font:700 16px var(--ff);padding:14px;border-radius:12px;cursor:pointer}
+  .ghost{border:1px solid var(--line);background:transparent;color:var(--ink);font:600 14px var(--ff);padding:11px 14px;border-radius:12px;cursor:pointer}
+  .link{border:0;background:none;color:var(--accent);font:600 14px var(--ff);cursor:pointer;padding:0}
+  .hint{font-size:13px;color:var(--muted);text-align:center;margin:10px 0 0}
+  .del{color:var(--warn)!important}
+  /* wizard */
+  .wiz{background:#232a33;color:#eef1f4;border-radius:22px;padding:14px 14px 16px}
+  .wiz input,.wiz textarea{color:#eef1f4;border-color:#3a434d}
+  .wiz .lbl{color:#a7b0b9}
+  .wiz .chip{color:#eef1f4;border-color:#3a434d}
+  .wiz .chip.on{border-color:#8fd3bf;background:rgba(143,211,191,.15)}
+  .wiz-top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;font-size:13px;color:#a7b0b9;gap:8px}
+  .wiz-top .exname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wiz-top .link{justify-self:end;color:#8fd3bf}
+  .bar{height:3px;background:#3a434d;border-radius:3px;margin:10px 0 16px}
+  .bar i{display:block;height:100%;background:#8b7cf6;border-radius:3px;transition:width .25s}
+  .eyebrow{margin:0 0 4px;font-size:13px;color:#a7b0b9;font-weight:600}
+  .q{font-size:20px;font-weight:600;margin:0 0 14px;line-height:1.3}
+  .vscale{display:grid;grid-template-columns:76px 1fr;grid-template-rows:repeat(11,40px);margin:0 -14px}
+  .vn{grid-column:1/3;display:grid;grid-template-columns:76px 1fr;border:0;padding:0;background:transparent;cursor:pointer}
+  .vn .num{background:var(--c);color:#fff;font:600 15px/1 var(--ff);display:grid;place-items:center}
+  .vn .fill{transition:background .15s}
+  .vn.on .num{font-size:19px;font-weight:800;box-shadow:inset 0 0 0 3px #fff}
+  .vn.on .fill{background:color-mix(in srgb,var(--c) 35%,transparent)}
+  .vf{grid-column:2;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;padding-left:22px;pointer-events:none;z-index:1;color:#eef1f4}
+  .vf span{font-size:11px;font-weight:700;letter-spacing:.3px}
+  .wiz-bottom{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+  .iconbtn{border:0;background:transparent;color:#eef1f4;font-size:30px;line-height:1;padding:4px 14px;cursor:pointer}
+  .wiz .ghost{color:#eef1f4;border-color:#3a434d;min-width:110px}
+  .sumdots{display:flex;justify-content:space-around;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
+  .sd{border:0;background:transparent;color:#a7b0b9;display:flex;flex-direction:column;align-items:center;gap:4px;font:11px var(--ff);cursor:pointer;max-width:64px}
+  .sd .dot.none{background:#3a434d;color:#a7b0b9}
+  .wiz .hint{color:#a7b0b9}
+  /* progress */
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+  .tile b{display:block;font-size:24px;line-height:1.1}
+  .tile span{font-size:12px;color:var(--muted)}
+  .good{color:var(--accent)} .bad{color:var(--warn)}
+  h2{font-size:16px;margin:0 0 4px}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 10px}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:6px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+  svg text{fill:var(--muted);font-size:10px}
+  .banner{background:color-mix(in srgb,var(--after) 14%,var(--card));border:1px solid color-mix(in srgb,var(--after) 40%,transparent);
+    border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:10px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .empty{text-align:center;padding:30px 16px}
+  .empty p{color:var(--muted)}
+  /* history */
+  .h-item .top{display:flex;justify-content:space-between;gap:8px}
+  .h-item .name{font-weight:700}
+  .h-item .when{font-size:13px;color:var(--muted)}
+  .dots{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 6px}
+  .dcol{display:flex;flex-direction:column;align-items:center;gap:3px;width:40px;font-size:10px;color:var(--muted);text-align:center;line-height:1.1}
+  .dot{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:700 13px var(--ff);color:#fff;flex:none}
+  .dot.none{background:var(--line);color:var(--muted)}
+  .badge{font-size:11px;font-weight:700;background:color-mix(in srgb,var(--peak) 18%,transparent);color:var(--peak);padding:2px 8px;border-radius:999px;white-space:nowrap;align-self:flex-start}
+  .note{font-size:14px;color:var(--muted);margin:4px 0 8px;white-space:pre-wrap}
+  .h-actions{display:flex;gap:16px}
+  /* settings */
+  .steprow{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+  .steprow .r1{display:grid;grid-template-columns:52px 1fr;gap:8px}
+  .steprow .r2{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px;align-items:center}
+  .steprow input.emo{text-align:center;padding:10px 4px}
+  .steprow .tools{display:flex;gap:4px}
+  .tbtn{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;width:36px;height:38px;font:16px var(--ff);cursor:pointer}
+  .tbtn:disabled{opacity:.35}
+  .small{font-size:13px;color:var(--muted)}
+  .about p{margin:0 0 10px;font-size:14px}
+  /* overlays */
+  #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;transition:.25s;pointer-events:none;z-index:40;max-width:90vw;text-align:center}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:30;padding:20px}
+  .overlay.show{display:flex}
+  .overlay .card{max-width:380px;width:100%;max-height:88vh;overflow:auto}
+  .overlay .actions{justify-content:flex-end}
+  .welcome h2{font-size:20px;margin-bottom:10px}
+  .welcome ul{padding-left:20px;margin:0 0 12px}
+  .welcome li{margin-bottom:8px;font-size:15px}
+  .procard{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px;
+    background:color-mix(in srgb,#8b7cf6 12%,var(--card));border-color:color-mix(in srgb,#8b7cf6 35%,transparent)}
+  .price b{font-size:30px} .price span{color:var(--muted)}
+  .feat{display:grid;grid-template-columns:34px 1fr 24px;gap:10px;align-items:center;width:100%;text-align:left;
+    border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:12px;padding:10px;margin-bottom:8px;font:15px var(--ff);cursor:pointer}
+  .feat.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+  .feat .fi{font-size:22px;text-align:center} .feat .ck{color:var(--accent);font-weight:800}
+  .tog{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);cursor:pointer;font-size:15px}
+  .tog:first-of-type{border-top:0}
+  .tog input{appearance:none;width:46px;height:28px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;transition:.2s;margin:0}
+  .tog input::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:.2s}
+  .tog input:checked{background:var(--accent)} .tog input:checked::after{left:21px}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>🌱 Brave Steps<span class="beta">BETA</span></h1><span id="sync"></span></header>
+  <nav>
+    <button data-view="log" class="on">Log</button>
+    <button data-view="progress">Progress</button>
+    <button data-view="history">History</button>
+    <button data-view="settings" aria-label="Settings">⚙︎</button>
+  </nav>
+  <section id="v-log"></section>
+  <section id="v-progress" class="hidden"></section>
+  <section id="v-history" class="hidden"></section>
+  <section id="v-settings" class="hidden"></section>
+  <section id="v-pro" class="hidden"></section>
+</div>
+<div id="toast" role="status"></div>
+<div id="confirm" class="overlay"><div class="card"><p id="confirm-msg" style="margin-top:0"></p>
+  <div class="actions"><button class="ghost" id="confirm-no">Cancel</button><button class="ghost del" id="confirm-yes">Delete</button></div></div></div>
+<div id="welcome" class="overlay"><div class="card welcome">
+  <h2>🌱 Welcome to Brave Steps</h2>
+  <ul>
+    <li><b>Log an outing in a few taps.</b> Rate anxiety from 0 (calm) to 10 (most scared) at each step: before leaving, in the car, during, after.</li>
+    <li><b>See progress over time.</b> Charts show whether peaks are coming down.</li>
+    <li id="welcome-privacy"></li>
+    <li><b>Install it:</b> iPhone: Safari → Share → <i>Add to Home Screen</i>. Android: Chrome menu → <i>Add to Home screen</i>.</li>
+  </ul>
+  <p class="small">This is a beta tracking tool, not medical advice or treatment. Use it alongside the plan from your child's or your own therapist.</p>
+  <div class="actions"><button class="primary" id="welcome-go" style="flex:1">Get started</button></div>
+</div></div>
+<input type="file" id="importfile" accept="application/json,.json" class="hidden">
+
+<script>
+/* ===== Config ===== */
+const VERSION = "0.3 beta";
+const FEEDBACK_URL = ""; // ← paste your feedback form link here (e.g. a Google Form)
+// Pro waitlist form. Use a Google Form "pre-filled link" and put {variant}, {price} and {features}
+// where the answers go, e.g. ...viewform?usp=pp_url&entry.111={variant}&entry.222={price}&entry.333={features}
+const PRO_FORM_URL = "";
+// Anonymous counting via GoatCounter. Leave "" to turn ALL counting off.
+// Example: "https://YOURCODE.goatcounter.com/count"
+// Sends ONLY event names (e.g. "open", "log-done", "pro-view-A"), never entries, names, ratings or notes.
+const COUNT_URL = "https://bravesteps.goatcounter.com/count";
+const PRICES = { A: { month: "$4.99", year: "$39" }, B: { month: "$7.99", year: "$59" } };
+const PRO_FEATURES = [
+  ["sync",    "☁️", "Sync across phones", "Share one log between parents and devices"],
+  ["report",  "🧾", "Therapist report", "A one-page PDF with charts to bring to sessions"],
+  ["ladder",  "🪜", "Exposure ladder planner", "Plan steps from easiest to hardest and track each one"],
+  ["plans",   "🗺️", "Ready-made plans", "Templates for school drop-off, doctor visits, sleepovers and more"],
+  ["remind",  "⏰", "Reminders", "A nudge to log during each outing"],
+  ["kidmode", "🧒", "Kid mode", "Bigger faces and simpler words so kids can rate themselves"],
+];
+
+/* ===== Storage (this device only) ===== */
+const KEY_E = "bravesteps.entries.v1", KEY_S = "bravesteps.settings.v1";
+const DEFAULT_STEPS = [
+  {id:"before",  label:"Before leaving the house", icon:"🏠", short:"Home"},
+  {id:"car",     label:"In the car",               icon:"🚗", short:"Car"},
+  {id:"leaving", label:"Leaving the car",          icon:"🚪", short:"Exit"},
+  {id:"during",  label:"During the exposure",      icon:"⭐", short:"During"},
+  {id:"after",   label:"After the exposure",       icon:"🌈", short:"After"},
+];
+function load(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } }
+let storageOK = true;
+function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); storageOK = true; } catch(e){ storageOK = false; } }
+let settings = Object.assign({ name:"", steps: DEFAULT_STEPS, onboarded:false }, load(KEY_S, {}));
+if (!settings.priceVariant){ settings.priceVariant = Math.random() < 0.5 ? "A" : "B"; try { localStorage.setItem(KEY_S, JSON.stringify(settings)); } catch(e){} }
+let entries = load(KEY_E, []);
+const saveEntries = () => { save(KEY_E, entries); setSync(); };
+const saveSettings = () => save(KEY_S, settings);
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+
+/* ===== Helpers ===== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const color = n => `hsl(${Math.round(150 - n * 14.5)} 50% 48%)`;
+const newId = p => (p || "e") + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function nowLocal(){ const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,16); }
+const copySteps = () => settings.steps.map(s => ({...s}));
+const blank = () => ({ id:newId(), exposure:"", date:nowLocal(), steps:copySteps(), ratings:{}, notes:"", done:false, updatedAt:Date.now() });
+const stepsOf = e => (e.steps && e.steps.length) ? e.steps : DEFAULT_STEPS;
+const vals = e => stepsOf(e).map(s => e.ratings?.[s.id] ?? null);
+const hasRating = e => vals(e).some(v => v != null);
+const hasContent = e => hasRating(e) || (e.exposure||"").trim() || (e.notes||"").trim();
+const peak = e => { const v = vals(e).filter(x => x != null); return v.length ? Math.max(...v) : null; };
+const endVal = e => { const v = vals(e); return v[v.length - 1]; };
+const fmtDay = d => new Date(d).toLocaleDateString(undefined, {month:"short", day:"numeric"});
+const fmtFull = d => new Date(d).toLocaleString(undefined, {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"});
+const avg = a => { const v = a.filter(x => x != null); return v.length ? v.reduce((s,x)=>s+x,0)/v.length : null; };
+const byDate = (a,b) => (a.date||"").localeCompare(b.date||"");
+function setSync(){ $("#sync").textContent = storageOK ? "🔒 Saved on this phone" : "⚠️ Can't save on this browser"; }
+function toast(t){ const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(()=>el.classList.remove("show"), 2000); }
+function upsert(e){ e.updatedAt = Date.now(); const i = entries.findIndex(x => x.id === e.id); const copy = JSON.parse(JSON.stringify(e)); if (i >= 0) entries[i] = copy; else entries.push(copy); saveEntries(); }
+function confirmBox(msg, yesLabel, yes){
+  $("#confirm-msg").innerHTML = msg; $("#confirm-yes").textContent = yesLabel; $("#confirm").classList.add("show");
+  $("#confirm-yes").onclick = () => { $("#confirm").classList.remove("show"); yes(); };
+  $("#confirm-no").onclick = () => $("#confirm").classList.remove("show");
+}
+function download(name, text, type){
+  try {
+    const url = URL.createObjectURL(new Blob([text], {type}));
+    const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000); return true;
+  } catch(e){ toast("Couldn't download on this device"); return false; }
+}
+
+/* ===== Log: one question per screen ===== */
+const LEVELS = [[10,9,"MOST SCARED",5],[8,7,"VERY SCARED",4],[6,5,"SCARED",3],[4,3,"WORRIED",2],[2,1,"A LITTLE WORRIED",1],[0,0,"CALM",0]];
+let cur = null, step = 0;
+const nSteps = () => stepsOf(cur).length + 2;
+function face(k){
+  const mouth = ["M10 19.5 Q16 26 22 19.5","M11 20.5 Q16 24 21 20.5","M11 21.5 L21 21.5","M11 22.5 Q16 20 21 22.5","M10.5 23.5 Q16 18.5 21.5 23.5","M11 24 Q16 17.5 21 24 Z"][k];
+  const brows = k >= 4 ? `<path d="M9 10.5 L13.5 12.2 M23 10.5 L18.5 12.2"/>` : "";
+  const tear = k === 5 ? `<path d="M22.5 15.5 q-1.6 2.6 0 3.4 q1.6 -0.8 0 -3.4z" fill="currentColor" stroke-width="1"/>` : "";
+  return `<svg viewBox="0 0 32 32" width="38" height="38" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="16" cy="16" r="13.5"/><circle cx="12" cy="14" r="1.3" fill="currentColor"/><circle cx="20" cy="14" r="1.3" fill="currentColor"/>${brows}<path d="${mouth}"/>${tear}</svg>`;
+}
+function firstOpenStep(e){
+  if (e.done) return nSteps() - 1;
+  if (!hasContent(e)) return 0;
+  const i = stepsOf(e).findIndex(s => e.ratings?.[s.id] == null);
+  return i < 0 ? nSteps() - 1 : i + 1;
+}
+function pickCurrent(){
+  const open = entries.filter(e => !e.done && hasContent(e)).sort((a,b) => b.updatedAt - a.updatedAt)[0];
+  cur = open ? JSON.parse(JSON.stringify(open)) : blank();
+  step = firstOpenStep(cur);
+}
+function exposureNames(){
+  const seen = new Map();
+  [...entries].sort((a,b)=>b.updatedAt-a.updatedAt).forEach(e => { const n = (e.exposure||"").trim(); if (n && !seen.has(n.toLowerCase())) seen.set(n.toLowerCase(), n); });
+  return [...seen.values()].slice(0, 8);
+}
+function renderLog(){
+  if (!cur.done && !hasRating(cur)) cur.steps = copySteps(); // untouched outing follows current settings
+  if (step > nSteps() - 1) step = nSteps() - 1;
+  const steps = stepsOf(cur), last = nSteps() - 1;
+  const who = (settings.name || "").trim();
+  let body = "";
+  if (step === 0){
+    const names = exposureNames();
+    body = `<p class="eyebrow">Today's practice</p><h2 class="q">What's the exposure?</h2>
+      <input type="text" id="exp" value="${esc(cur.exposure)}" placeholder="e.g. Grocery store, School drop-off" autocomplete="off" maxlength="80">
+      ${names.length ? `<div class="chips">${names.map(n => `<button class="chip ${n===cur.exposure?"on":""}" data-name="${esc(n)}">${esc(n)}</button>`).join("")}</div>` : ""}
+      <label class="lbl" for="dt" style="margin-top:16px">When</label><input type="datetime-local" id="dt" value="${esc(cur.date)}">
+      <button class="primary" id="next" style="width:100%;margin-top:18px">Start ›</button>`;
+  } else if (step <= steps.length){
+    const s = steps[step - 1], r = cur.ratings[s.id];
+    body = `<p class="eyebrow">${esc(s.icon)} ${esc(s.label)}</p><h2 class="q">${who ? `How anxious is ${esc(who)} right now?` : "How anxious right now?"}</h2>
+      <div class="vscale" data-k="${esc(s.id)}">
+        ${Array.from({length:11}, (_,i) => 10 - i).map(n => `<button class="vn ${r===n?"on":""}" data-v="${n}" style="--c:${color(n)};grid-row:${11-n}" aria-label="${n}"><span class="num">${n}</span><span class="fill"></span></button>`).join("")}
+        ${LEVELS.map(([t,b,lab,f]) => `<div class="vf" style="grid-row:${11-t} / span ${t-b+1}">${face(f)}<span>${lab}</span></div>`).join("")}
+      </div>`;
+  } else {
+    body = `<p class="eyebrow">${cur.done ? "Editing a saved entry" : "Almost done"}</p><h2 class="q">Anything to note?</h2>
+      <div class="sumdots">${steps.map((s, i) => { const x = cur.ratings[s.id];
+        return `<button class="sd" data-goto="${i+1}"><span class="dot ${x==null?"none":""}" style="${x!=null?`background:${color(x)}`:""}">${x ?? "–"}</span><span>${esc(s.short)}</span></button>`; }).join("")}</div>
+      <p class="hint" style="margin:2px 0 12px">Tap a number to change it.</p>
+      <textarea id="notes" placeholder="What helped? What was hard?" maxlength="2000">${esc(cur.notes)}</textarea>
+      <button class="primary" id="finish" style="width:100%;margin-top:14px">${cur.done ? "Save changes" : "Finish & save"}</button>`;
+  }
+  $("#v-log").innerHTML = `
+    <div class="wiz">
+      <div class="wiz-top">
+        <span class="exname">${esc(cur.exposure || (step ? "Untitled outing" : ""))}</span>
+        <span class="count">${step + 1}/${nSteps()}</span>
+        ${hasContent(cur) || cur.done ? `<button class="link" id="newbtn">＋ New</button>` : `<span></span>`}
+      </div>
+      <div class="bar"><i style="width:${(step + 1) / nSteps() * 100}%"></i></div>
+      ${body}
+      ${step > 0 ? `<div class="wiz-bottom"><button class="iconbtn" id="back" aria-label="Back">‹</button>
+        ${step < last ? `<button class="ghost" id="skip">Skip</button>` : ""}</div>` : ""}
+    </div>
+    <p class="hint">Each answer saves right away, so you can close the app between steps and pick up where you left off.</p>`;
+}
+function go(s){ step = Math.max(0, Math.min(nSteps() - 1, s)); renderLog(); window.scrollTo({top:0}); }
+$("#v-log").addEventListener("click", ev => {
+  const n = ev.target.closest(".vn");
+  if (n){
+    cur.ratings[n.parentElement.dataset.k] = +n.dataset.v;
+    n.parentElement.querySelectorAll(".vn").forEach(b => b.classList.toggle("on", b === n));
+    upsert(cur);
+    try { navigator.vibrate && navigator.vibrate(8); } catch(e){}
+    clearTimeout(go._t); go._t = setTimeout(() => go(cur.done ? nSteps() - 1 : step + 1), 280);
+    return;
+  }
+  const chip = ev.target.closest(".chip");
+  if (chip){ cur.exposure = chip.dataset.name; upsert(cur); go(1); return; }
+  const sd = ev.target.closest(".sd");
+  if (sd){ go(+sd.dataset.goto); return; }
+  const id = ev.target.id;
+  if (id === "next" || id === "skip") go(step + 1);
+  if (id === "back") go(step - 1);
+  if (id === "finish"){
+    if (!hasContent(cur)){ toast("Add at least one answer first"); return; }
+    cur.done = true; upsert(cur);
+    toast("Saved! 🎉 Nice work today"); track("log-done");
+    cur = blank(); go(0);
+  }
+  if (id === "newbtn"){ cur = blank(); go(0); }
+});
+let typeT;
+$("#v-log").addEventListener("input", ev => {
+  const t = ev.target;
+  if (t.id === "exp") cur.exposure = t.value;
+  else if (t.id === "notes") cur.notes = t.value;
+  else if (t.id === "dt") cur.date = t.value || nowLocal();
+  else return;
+  clearTimeout(typeT); typeT = setTimeout(() => { if (hasContent(cur) || cur.done) upsert(cur); }, 400);
+});
+
+/* ===== Charts ===== */
+function lineChart(labels, series, opts = {}){
+  const W = 340, H = opts.h || 190, L = 24, R = 22, T = 10, B = 26;
+  const n = labels.length, iw = W - L - R, ih = H - T - B;
+  const x = i => L + (n <= 1 ? iw/2 : i * iw / (n - 1));
+  const y = v => T + ih - (v / 10) * ih;
+  let g = "";
+  for (let v = 0; v <= 10; v += 2)
+    g += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity=".12"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  const stepN = Math.max(1, Math.ceil(n / 6));
+  labels.forEach((lb, i) => { if (i % stepN === 0 || i === n - 1) g += `<text x="${x(i)}" y="${H-8}" text-anchor="middle">${esc(lb)}</text>`; });
+  series.forEach(s => {
+    let d = "", pen = false;
+    s.values.forEach((v, i) => { if (v == null){ pen = false; return; } d += (pen ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1); pen = true; });
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" ${s.dash ? 'stroke-dasharray="5 4"' : ""}/>`;
+    s.values.forEach((v, i) => { if (v != null) g += `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="${s.color}"><title>${esc(labels[i])}: ${Math.round(v*10)/10}</title></circle>`; });
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="color:var(--ink);display:block" role="img">${g}</svg>`;
+}
+const legend = items => `<div class="legend">${items.map(([c,t,dash]) => `<span><i style="background:${dash?`repeating-linear-gradient(90deg,${c} 0 5px,transparent 5px 8px)`:c}"></i>${t}</span>`).join("")}</div>`;
+
+/* ===== Progress ===== */
+let sample = null, progFilter = "All";
+function renderProgress(){
+  const all = (sample || entries).filter(hasRating).sort(byDate);
+  const names = [...new Set(all.map(e => (e.exposure||"").trim() || "Untitled"))];
+  if (progFilter !== "All" && !names.includes(progFilter)) progFilter = "All";
+  const data = progFilter === "All" ? all : all.filter(e => ((e.exposure||"").trim() || "Untitled") === progFilter);
+  const v = $("#v-progress");
+  if (!all.length){
+    v.innerHTML = `<div class="card empty"><div style="font-size:40px">📈</div><h2>No outings logged yet</h2>
+      <p>After a few entries you'll see anxiety levels over time here.</p>
+      <button class="ghost" id="sample-on">Preview with sample data</button></div>`;
+    return;
+  }
+  const peaks = data.map(peak), ends = data.map(endVal);
+  const k = Math.min(3, Math.floor(data.length / 2));
+  const early = k ? avg(peaks.slice(0, k)) : null, recent = k ? avg(peaks.slice(-k)) : null;
+  const change = early && recent != null ? Math.round((recent - early) / early * 100) : null;
+  const half = Math.floor(data.length / 2), steps = settings.steps;
+  const prof = list => steps.map(s => avg(list.map(e => e.ratings?.[s.id] ?? null)));
+  v.innerHTML = `
+    ${sample ? `<div class="banner"><span>Showing <b>sample data</b>. Nothing here is saved.</span><button class="link" id="sample-off">Exit</button></div>` : ""}
+    <div class="card" style="padding:10px 14px">
+      <label class="lbl" for="pf">Exposure</label>
+      <select id="pf">${["All", ...names].map(n => `<option ${n===progFilter?"selected":""}>${esc(n)}</option>`).join("")}</select>
+    </div>
+    <div class="tiles">
+      <div class="tile"><b>${data.length}</b><span>outings logged</span></div>
+      <div class="tile"><b>${recent != null ? recent.toFixed(1) : "–"}</b><span>recent peak avg${early != null ? ` (was ${early.toFixed(1)})` : ""}</span></div>
+      <div class="tile"><b class="${change == null ? "" : change <= 0 ? "good" : "bad"}">${change == null ? "–" : (change <= 0 ? "↓ " : "↑ ") + Math.abs(change) + "%"}</b><span>change in peak</span></div>
+    </div>
+    <div class="card">
+      <h2>Highest anxiety each outing</h2>
+      <p class="sub">The peak rating from each outing, and the rating at the last step.</p>
+      ${legend([["var(--peak)","Peak"],["var(--after)","Last step",true]])}
+      ${lineChart(data.map(e => fmtDay(e.date)), [{values: peaks, color:"var(--peak)"},{values: ends, color:"var(--after)", dash:true}])}
+    </div>
+    ${data.length >= 2 ? `<div class="card">
+      <h2>How an outing feels, step by step</h2>
+      <p class="sub">Average at each step: first ${half} outing${half>1?"s":""} vs. the most recent ${data.length-half}.</p>
+      ${legend([["var(--early)","Earlier"],["var(--recent)","Recent"]])}
+      ${lineChart(steps.map(s => s.short), [{values: prof(data.slice(0, half)), color:"var(--early)"},{values: prof(data.slice(half)), color:"var(--recent)"}], {h:180})}
+    </div>` : ""}
+    <div class="card procard"><b>✨ Want a therapist report and sync between parents?</b><button class="link" data-gopro="progress">See Brave Steps Pro ›</button></div>
+    <p class="hint">Charts show logged numbers only. Talk with your therapist about what they mean.</p>`;
+}
+$("#v-progress").addEventListener("change", ev => { if (ev.target.id === "pf"){ progFilter = ev.target.value; renderProgress(); } });
+$("#v-progress").addEventListener("click", ev => {
+  if (ev.target.id === "sample-on"){ sample = makeSample(); renderProgress(); }
+  if (ev.target.id === "sample-off"){ sample = null; renderProgress(); renderHistory(); }
+});
+function makeSample(){
+  const out = [], start = new Date(); start.setDate(start.getDate() - 35);
+  const days = [0,2,5,8,12,15,19,23,27,30,34], steps = copySteps(), m = steps.length;
+  const jit = [0.3,-0.4,0.5,0,-0.3,0.4,-0.2,0.3,0,-0.4,0.2];
+  const clamp = v => Math.max(0, Math.min(10, Math.round(v)));
+  days.forEach((day, i) => {
+    const name = i % 2 ? "School drop-off" : "Grocery store";
+    const d = new Date(start); d.setDate(d.getDate() + day); d.setHours(15, 30, 0, 0); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    const t = i / (days.length - 1), p = 9.2 - 4.8 * t + (i % 2) * 0.4, r = {};
+    steps.forEach((s, j) => { r[s.id] = j === m - 1 && m > 1 ? clamp(p - 4.5 + t * 1.2) : clamp(p - 2.2 + (m > 2 ? j * 2.2 / (m - 2) : 0) + jit[i]); });
+    out.push({ id:"s"+i, exposure:name, date:d.toISOString().slice(0,16), steps, ratings:r, notes:"", done:true, updatedAt:i });
+  });
+  return out;
+}
+
+/* ===== History ===== */
+function renderHistory(){
+  const list = entries.filter(hasContent).sort(byDate).reverse();
+  const v = $("#v-history");
+  if (!list.length){ v.innerHTML = `<div class="card empty"><div style="font-size:40px">🗂️</div><h2>Nothing here yet</h2><p>Logged outings will show up here.</p></div>`; return; }
+  v.innerHTML = list.map(e => `<div class="card h-item">
+      <div class="top"><div><div class="name">${esc(e.exposure || "Untitled")}</div><div class="when">${fmtFull(e.date)}</div></div>
+        ${e.done ? "" : `<span class="badge">in progress</span>`}</div>
+      <div class="dots">${stepsOf(e).map(s => { const x = e.ratings?.[s.id];
+        return `<span class="dcol">${x == null ? `<span class="dot none">–</span>` : `<span class="dot" style="background:${color(x)}">${x}</span>`}${esc(s.short)}</span>`; }).join("")}</div>
+      ${e.notes ? `<p class="note">${esc(e.notes)}</p>` : ""}
+      <div class="h-actions"><button class="link" data-edit="${e.id}">Edit</button><button class="link del" data-del="${e.id}">Delete</button></div>
+    </div>`).join("");
+}
+$("#v-history").addEventListener("click", ev => {
+  const ed = ev.target.dataset.edit, del = ev.target.dataset.del;
+  if (ed){ const e = entries.find(x => x.id === ed); if (e){ cur = JSON.parse(JSON.stringify(e)); if (!cur.steps) cur.steps = DEFAULT_STEPS.map(s=>({...s})); step = nSteps() - 1; show("log"); } }
+  if (del){ const e = entries.find(x => x.id === del);
+    confirmBox(`Delete “${esc(e?.exposure || "Untitled")}” from ${e ? fmtDay(e.date) : ""}? This can't be undone.`, "Delete", () => {
+      entries = entries.filter(x => x.id !== del); saveEntries();
+      if (cur && cur.id === del){ cur = blank(); step = 0; renderLog(); }
+      renderHistory(); toast("Deleted"); }); }
+});
+
+/* ===== Settings ===== */
+function renderSettings(){
+  const st = settings.steps;
+  $("#v-settings").innerHTML = `
+    <div class="card procard"><b>✨ Brave Steps Pro is coming</b><button class="link" data-gopro="settings">Take a look ›</button></div>
+    <div class="card">
+      <label class="lbl" for="who">Who's practicing? <span style="font-weight:400">(optional)</span></label>
+      <input type="text" id="who" value="${esc(settings.name)}" placeholder="First name or nickname" maxlength="30" autocomplete="off">
+      <p class="small" style="margin:6px 0 0">Used in the questions, e.g. “How anxious is Mia right now?”</p>
+    </div>
+    <div class="card">
+      <h2>Steps for each outing</h2>
+      <p class="sub">Rename, reorder, or add steps to match your routine. Changes apply to new entries; past entries keep their steps.</p>
+      <div id="steplist">${st.map((s, i) => `<div class="steprow" data-i="${i}">
+        <div class="r1"><input type="text" class="emo" data-f="icon" value="${esc(s.icon)}" maxlength="4" aria-label="Emoji">
+          <input type="text" data-f="label" value="${esc(s.label)}" maxlength="50" aria-label="Step name"></div>
+        <div class="r2"><input type="text" data-f="short" value="${esc(s.short)}" maxlength="10" aria-label="Short chart label" placeholder="Short label">
+          <div class="tools"><button class="tbtn" data-mv="-1" ${i===0?"disabled":""} aria-label="Move up">↑</button><button class="tbtn" data-mv="1" ${i===st.length-1?"disabled":""} aria-label="Move down">↓</button><button class="tbtn del" data-rm ${st.length<=1?"disabled":""} aria-label="Remove">✕</button></div></div>
+      </div>`).join("")}</div>
+      <div class="actions"><button class="ghost" id="addstep">＋ Add a step</button><button class="link" id="resetsteps" style="margin-left:auto">Reset to default</button></div>
+    </div>
+    <div class="card">
+      <h2>Your data</h2>
+      <p class="sub">Everything is stored only on this phone, in this browser. Back it up now and then: if the app is deleted or browser data is cleared, it's gone.</p>
+      <div class="actions" style="flex-direction:column;align-items:stretch">
+        <button class="ghost" id="exp-json">⬇︎ Save a backup file</button>
+        <button class="ghost" id="imp-json">⬆︎ Restore from a backup file</button>
+        <button class="ghost" id="exp-csv">⬇︎ Download spreadsheet (CSV) for your therapist</button>
+        <button class="ghost" id="copy-csv">Copy spreadsheet rows</button>
+        <button class="ghost del" id="wipe">Delete all data on this phone</button>
+      </div>
+      <p class="small" style="margin:10px 0 0">${(n => `${n} entr${n===1?"y":"ies"} saved.`)(entries.filter(hasContent).length)}</p>
+    </div>
+    ${COUNT_URL ? `<div class="card">
+      <h2>Privacy choices</h2>
+      <label class="tog"><span><b>Count my visits anonymously</b><br><span class="small">Sends only “app opened” and “outing saved” style events, with no names, ratings or notes. Helps us know how many people use the beta.</span></span>
+        <input type="checkbox" id="tog-count" ${settings.countOff ? "" : "checked"}></label>
+      <label class="tog"><span><b>Share a weekly usage summary</b><br><span class="small">Once a week: roughly how many outings you logged (e.g. “3–5”), and whether you customized steps. Never what you logged. Off unless you turn it on.</span></span>
+        <input type="checkbox" id="tog-usage" ${settings.shareUsage ? "checked" : ""}></label>
+    </div>` : ""}
+    <div class="card about">
+      <h2>About this beta</h2>
+      <p>Brave Steps helps you log anxiety ratings during exposure practice and see the trend over time.</p>
+      <p><b>Privacy:</b> ${privacyLine()}</p>
+      <p><b>Not medical advice.</b> This is a tracking tool, not treatment. Follow your therapist's plan. In a crisis, call or text 988 (US).</p>
+      ${FEEDBACK_URL ? `<p><a class="primary" style="display:block;text-align:center;text-decoration:none" href="${esc(FEEDBACK_URL)}" target="_blank" rel="noopener">💬 Send beta feedback</a></p>` : ""}
+      <p class="small">Version ${VERSION} · <button class="link" id="showwelcome" style="font-size:13px">Show intro again</button></p>
+    </div>`;
+}
+const sv = $("#v-settings");
+sv.addEventListener("change", ev => {
+  if (ev.target.id === "tog-count"){ settings.countOff = !ev.target.checked; saveSettings(); toast(ev.target.checked ? "Anonymous counting on" : "Anonymous counting off"); }
+  if (ev.target.id === "tog-usage"){ settings.shareUsage = ev.target.checked; if (!ev.target.checked) delete settings.usageSentAt; saveSettings(); toast(ev.target.checked ? "Thanks! Weekly summary on" : "Weekly summary off"); if (ev.target.checked) sendUsage(); }
+});
+sv.addEventListener("input", ev => {
+  const t = ev.target;
+  if (t.id === "who"){ settings.name = t.value; saveSettings(); return; }
+  const row = t.closest(".steprow");
+  if (row && t.dataset.f){ settings.steps[+row.dataset.i][t.dataset.f] = t.value; saveSettings(); }
+});
+sv.addEventListener("focusout", ev => { // fill blank fields so steps never render empty
+  const row = ev.target.closest(".steprow"); if (!row) return;
+  const s = settings.steps[+row.dataset.i]; let changed = false;
+  if (!s.label.trim()){ s.label = "Step " + (+row.dataset.i + 1); changed = true; }
+  if (!s.short.trim()){ s.short = s.label.trim().split(/\s+/)[0].slice(0, 10); changed = true; }
+  if (changed){ saveSettings(); renderSettings(); }
+});
+sv.addEventListener("click", ev => {
+  const t = ev.target.closest("button"); if (!t) return;
+  const row = t.closest(".steprow"), st = settings.steps;
+  if (row && t.dataset.mv){ const i = +row.dataset.i, j = i + +t.dataset.mv; [st[i], st[j]] = [st[j], st[i]]; saveSettings(); renderSettings(); refreshDraftSteps(); return; }
+  if (row && t.hasAttribute("data-rm")){ st.splice(+row.dataset.i, 1); saveSettings(); renderSettings(); refreshDraftSteps(); return; }
+  switch (t.id){
+    case "addstep": st.push({ id:newId("st"), label:"New step", icon:"✨", short:"New" }); saveSettings(); renderSettings(); refreshDraftSteps(); break;
+    case "resetsteps": confirmBox("Reset the steps to the default five?", "Reset", () => { settings.steps = DEFAULT_STEPS.map(s=>({...s})); saveSettings(); renderSettings(); refreshDraftSteps(); }); break;
+    case "exp-json": if (download(`brave-steps-backup-${nowLocal().slice(0,10)}.json`, JSON.stringify({app:"brave-steps", version:VERSION, exportedAt:new Date().toISOString(), settings, entries}, null, 1), "application/json")) toast("Backup saved"); break;
+    case "imp-json": $("#importfile").click(); break;
+    case "exp-csv": if (download(`brave-steps-${nowLocal().slice(0,10)}.csv`, toCSV(), "text/csv")) toast("Spreadsheet downloaded"); break;
+    case "copy-csv": navigator.clipboard.writeText(toCSV()).then(() => toast("Copied. Paste into Google Sheets or Excel"), () => toast("Couldn't copy on this device")); break;
+    case "wipe": confirmBox("Delete <b>all</b> entries on this phone? Save a backup first if you might want them later. This can't be undone.", "Delete all", () => {
+      entries = []; saveEntries(); cur = blank(); step = 0; renderLog(); renderSettings(); toast("All data deleted"); }); break;
+    case "showwelcome": $("#welcome").classList.add("show"); break;
+  }
+});
+function refreshDraftSteps(){ // a fresh, untouched outing should use the new steps right away
+  if (cur && !cur.done && !hasRating(cur)){ cur.steps = copySteps(); if (step > nSteps() - 1) step = 0; renderLog(); }
+}
+$("#importfile").addEventListener("change", async ev => {
+  const f = ev.target.files[0]; ev.target.value = ""; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (data.app !== "brave-steps" || !Array.isArray(data.entries)) throw new Error("not a backup");
+    let added = 0;
+    data.entries.forEach(e => {
+      if (!e || typeof e.id !== "string") return;
+      const i = entries.findIndex(x => x.id === e.id);
+      if (i < 0){ entries.push(e); added++; } else if ((e.updatedAt||0) > (entries[i].updatedAt||0)) entries[i] = e;
+    });
+    if (data.settings && Array.isArray(data.settings.steps) && data.settings.steps.length) settings.steps = data.settings.steps;
+    if (data.settings && typeof data.settings.name === "string" && !settings.name) settings.name = data.settings.name;
+    saveEntries(); saveSettings(); renderSettings(); toast(`Restored. ${added} new entr${added===1?"y":"ies"}`);
+  } catch(e){ toast("That file isn't a Brave Steps backup"); }
+});
+function toCSV(){
+  const q = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const rows = [["Date","Exposure","Step","Rating (0-10)","Peak for outing","Notes","Status"].map(q).join(",")];
+  entries.filter(hasContent).sort(byDate).forEach(e => {
+    const pk = peak(e);
+    stepsOf(e).forEach((s, i) => rows.push([e.date.replace("T"," "), e.exposure, s.label, e.ratings?.[s.id] ?? "", pk ?? "", i === 0 ? e.notes : "", e.done ? "done" : "in progress"].map(q).join(",")));
+  });
+  return rows.join("\n");
+}
+
+
+/* ===== Pro (waitlist / price test) ===== */
+function privacyLine(){
+  return COUNT_URL
+    ? "no accounts, and your entries never leave this phone unless you export them. We count anonymous visits (no names, ratings or notes), and you can turn that off in Settings."
+    : "no accounts, no servers, no analytics. Your entries never leave this device unless you export them yourself.";
+}
+const bucket = (n, cuts) => { for (const [max, lab] of cuts) if (n <= max) return lab; return cuts[cuts.length-1][1]; };
+function sendUsage(){ // opt-in weekly summary, coarse buckets only
+  if (!COUNT_URL || !settings.shareUsage) return;
+  const WEEK = 7 * 864e5, now = Date.now();
+  if (now - (settings.usageSentAt || 0) < WEEK) return;
+  const done = entries.filter(e => e.done && hasRating(e));
+  const recent = done.filter(e => now - new Date(e.date).getTime() < WEEK).length;
+  const custom = JSON.stringify(settings.steps.map(x => x.id)) !== JSON.stringify(DEFAULT_STEPS.map(x => x.id));
+  send("usage-active");
+  send("usage-week-logs-" + bucket(recent, [[0,"0"],[2,"1-2"],[5,"3-5"],[1e9,"6plus"]]));
+  send("usage-total-logs-" + bucket(done.length, [[0,"0"],[5,"1-5"],[20,"6-20"],[1e9,"21plus"]]));
+  send("usage-steps-" + (custom ? "custom" : "default"));
+  settings.usageSentAt = now; saveSettings();
+}
+function send(name){
+  try { new Image().src = COUNT_URL + "?p=" + encodeURIComponent("/" + name) + "&t=" + encodeURIComponent(name) + "&e=true&rnd=" + Math.random().toString(36).slice(2); } catch(e){}
+}
+function track(name){
+  if (settings.countOff) return;
+  if (!COUNT_URL) return;
+  send(name);
+}
+let proPicked = new Set(), proFrom = "settings";
+function renderPro(){
+  const v = settings.priceVariant, p = PRICES[v], joined = settings.proJoined;
+  $("#v-pro").innerHTML = `
+    <button class="link" id="pro-back" style="margin:0 0 10px 2px">‹ Back</button>
+    <div class="card" style="text-align:center">
+      <div style="font-size:36px">✨</div>
+      <h2 style="font-size:20px">Brave Steps Pro</h2>
+      <p class="sub" style="margin-bottom:6px">Coming soon. Logging stays free forever.</p>
+      <div class="price"><b>${p.month}</b><span>/month</span> <span class="small">or ${p.year}/year</span></div>
+    </div>
+    <div class="card">
+      <h2>Which would you use?</h2>
+      <p class="sub">Tap everything that would help your family.</p>
+      ${PRO_FEATURES.map(([id, ic, t, d]) => `<button class="feat ${proPicked.has(id)?"on":""}" data-feat="${id}">
+        <span class="fi">${ic}</span><span><b>${t}</b><br><span class="small">${d}</span></span><span class="ck">${proPicked.has(id)?"✓":""}</span></button>`).join("")}
+    </div>
+    ${joined ? `<div class="card" style="text-align:center"><b>🎉 You're on the list.</b><p class="small" style="margin:6px 0 0">Thanks! We'll let you know when Pro is ready.</p></div>` : ""}
+    <button class="primary" id="pro-join" style="width:100%">${joined ? "Update my answers" : "Join the Pro waitlist"}</button>
+    <p class="hint">Joining is free and doesn't charge anything. It opens a short form; your logged entries are never shared.</p>`;
+}
+$("#v-pro").addEventListener("click", ev => {
+  const f = ev.target.closest(".feat");
+  if (f){ const id = f.dataset.feat; proPicked.has(id) ? proPicked.delete(id) : proPicked.add(id); renderPro(); return; }
+  if (ev.target.id === "pro-back") show(proFrom);
+  if (ev.target.id === "pro-join"){
+    const v = settings.priceVariant, p = PRICES[v];
+    const feats = PRO_FEATURES.filter(x => proPicked.has(x[0])).map(x => x[2]).join(", ") || "None selected";
+    track("pro-join-" + v);
+    if (!PRO_FORM_URL){ toast("Waitlist opens soon. Thanks for your interest!"); return; }
+    const url = PRO_FORM_URL.replace("{variant}", encodeURIComponent(v))
+      .replace("{price}", encodeURIComponent(`${p.month}/mo or ${p.year}/yr`))
+      .replace("{features}", encodeURIComponent(feats));
+    settings.proJoined = true; saveSettings();
+    window.open(url, "_blank", "noopener"); renderPro();
+  }
+});
+document.addEventListener("click", ev => {
+  const g = ev.target.closest("[data-gopro]");
+  if (g){ proFrom = g.dataset.gopro; track("pro-view-" + settings.priceVariant); show("pro"); }
+});
+
+/* ===== Navigation & start ===== */
+let view = "log";
+function show(v){
+  view = v;
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
+  ["log","progress","history","settings","pro"].forEach(x => $("#v-" + x).classList.toggle("hidden", x !== v));
+  if (v === "log") renderLog();
+  if (v === "progress") renderProgress();
+  if (v === "history") renderHistory();
+  if (v === "settings") renderSettings();
+  if (v === "pro") renderPro();
+  window.scrollTo({top:0});
+}
+document.querySelector("nav").addEventListener("click", ev => { const b = ev.target.closest("button"); if (b) show(b.dataset.view); });
+$("#welcome-go").addEventListener("click", () => { settings.onboarded = true; saveSettings(); $("#welcome").classList.remove("show"); });
+
+pickCurrent(); renderLog(); setSync();
+$("#welcome-privacy").innerHTML = "<b>Private by design.</b> " + (COUNT_URL
+  ? "Your entries stay on this phone, with no accounts. We only count anonymous visits (no names, ratings or notes), and you can turn that off in Settings."
+  : "Everything stays on this phone. Nothing is sent anywhere, and there are no accounts and no tracking.");
+track("open"); sendUsage();
+if (!settings.onboarded) $("#welcome").classList.add("show");
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "Brave Steps — Exposure Tracker",
+  "short_name": "Brave Steps",
+  "description": "Log anxiety ratings during exposure practice and see progress over time. Private: data stays on your device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f4ef",
+  "theme_color": "#3d7f6e",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
