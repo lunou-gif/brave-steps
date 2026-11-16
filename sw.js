@@ -1,5 +1,5 @@
 // Offline support. Bump CACHE when you publish a new version.
-const CACHE = "brave-steps-v0.3.0";
+const CACHE = "brave-steps-v0.3.1";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/icon-maskable-512.png"];
 
